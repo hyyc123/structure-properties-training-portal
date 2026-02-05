@@ -5,7 +5,17 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
-const ALLOWED_DOMAIN = "@structureproperties.com"; // logic-only for now (UI is generic)
+// Domain → company slug map (easy to expand later)
+function companySlugFromEmail(email: string): string | null {
+  const domain = email.split("@")[1]?.toLowerCase().trim();
+  if (!domain) return null;
+
+  if (domain === "structureproperties.com") return "structureproperties";
+
+  // Later:
+  // if (domain === "acme.com") return "acme";
+  return null;
+}
 
 export default function LoginPage() {
   const [fullName, setFullName] = useState("");
@@ -23,8 +33,9 @@ export default function LoginPage() {
     if (!name) return setStatus("Please enter your full name.");
     if (!emailClean || !password) return setStatus("Email and password are required.");
 
-    // Keep the restriction in place, but we don't mention it in the UI.
-    if (!emailClean.endsWith(ALLOWED_DOMAIN)) {
+    // Decide which company this email belongs to
+    const companySlug = companySlugFromEmail(emailClean);
+    if (!companySlug) {
       return setStatus("Your email domain is not authorized for this portal.");
     }
 
@@ -35,24 +46,71 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // 1) Sign in first
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailClean,
         password,
       });
 
-      if (error) {
-        const signUp = await supabase.auth.signUp({
+      // 2) If sign-in fails, try sign-up
+      if (signInError) {
+        const { error: signUpError } = await supabase.auth.signUp({
           email: emailClean,
           password,
         });
-        if (signUp.error) throw signUp.error;
+        if (signUpError) throw signUpError;
       }
 
+      // 3) Get the authenticated user
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+
+      const user = userRes.user;
+      if (!user) throw new Error("No authenticated user found.");
+
+      // 4) Look up company by slug
+      const { data: company, error: companyErr } = await supabase
+        .from("companies")
+        .select("id, slug")
+        .eq("slug", companySlug)
+        .single();
+
+      if (companyErr || !company) {
+        throw new Error("Company not found in database. Ask admin to add it.");
+      }
+
+      // 5) Check if profile exists
+      const { data: existingProfile, error: profileSelectErr } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      // If select fails (shouldn't, but just in case)
+      if (profileSelectErr) {
+        throw profileSelectErr;
+      }
+
+      // 6) Create profile if missing
+      if (!existingProfile) {
+        const { error: profileInsertErr } = await supabase.from("profiles").insert({
+          user_id: user.id,
+          full_name: name,
+          email: emailClean,
+          company_id: company.id,
+        });
+
+        if (profileInsertErr) throw profileInsertErr;
+      }
+
+      // 7) Save for exports / convenience
       localStorage.setItem("qs_full_name", name);
       localStorage.setItem("qs_email", emailClean);
 
-      window.location.href = "/";
+      // 8) Redirect to company portal
+      window.location.href = `/portal/${company.slug}`;
     } catch (err: any) {
       setStatus(err?.message || "Login failed.");
     } finally {
@@ -82,7 +140,6 @@ export default function LoginPage() {
           overflow: "hidden",
         }}
       >
-        {/* Accent bar */}
         <div
           style={{
             height: 6,
@@ -92,7 +149,6 @@ export default function LoginPage() {
         />
 
         <div style={{ padding: 26 }}>
-          {/* Logo + header */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div
               style={{
@@ -106,17 +162,13 @@ export default function LoginPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: 14, // ✅ gives non-square logos room
+                padding: 14,
               }}
             >
               <img
                 src="/logo.png"
                 alt="QuarterSmart"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain", // ✅ prevents cropping
-                }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
             </div>
 
@@ -130,11 +182,10 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Form */}
           <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
             <Field label="Full name">
               <input
-                placeholder="e.g., Hyrum Hurst"
+                placeholder="Your name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 style={inputStyle}
@@ -206,4 +257,3 @@ const inputStyle: React.CSSProperties = {
   color: "#e9eefc",
   outline: "none",
 };
-
