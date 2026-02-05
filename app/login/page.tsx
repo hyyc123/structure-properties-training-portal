@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
 const ALLOWED_DOMAIN = "@structureproperties.com";
 
@@ -37,7 +37,7 @@ export default function LoginPage() {
 
     try {
       // Try sign-in first
-      let { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: emailClean,
         password,
       });
@@ -61,7 +61,7 @@ export default function LoginPage() {
       // Redirect to portal
       window.location.href = "/";
     } catch (err: any) {
-      setStatus(err.message || "Login failed.");
+      setStatus(err?.message || "Login failed.");
     } finally {
       setLoading(false);
     }
