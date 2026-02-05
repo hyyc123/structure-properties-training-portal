@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { getSupabaseClient } from "../../lib/supabaseClient";
 
 const ALLOWED_DOMAIN = "@structureproperties.com";
 
@@ -20,23 +20,18 @@ export default function LoginPage() {
     const name = fullName.trim();
     const emailClean = email.trim().toLowerCase();
 
-    if (!name) {
-      setStatus("Please enter your full name.");
-      return;
-    }
+    if (!name) return setStatus("Please enter your full name.");
+    if (!emailClean || !password) return setStatus("Email and password are required.");
+    if (!emailClean.endsWith(ALLOWED_DOMAIN))
+      return setStatus(`Only ${ALLOWED_DOMAIN} emails are allowed.`);
 
-    if (!emailClean || !password) {
-      setStatus("Email and password are required.");
-      return;
-    }
-
-    if (!emailClean.endsWith(ALLOWED_DOMAIN)) {
-      setStatus(`Only ${ALLOWED_DOMAIN} emails are allowed.`);
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setStatus("Supabase is not configured (missing env vars in Vercel).");
       return;
     }
 
     setLoading(true);
-
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: emailClean,
@@ -48,10 +43,7 @@ export default function LoginPage() {
           email: emailClean,
           password,
         });
-
-        if (signUp.error) {
-          throw signUp.error;
-        }
+        if (signUp.error) throw signUp.error;
       }
 
       localStorage.setItem("sp_full_name", name);
@@ -65,8 +57,7 @@ export default function LoginPage() {
     }
   }
 
-  const domainValid =
-    !email || email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN);
+  const domainValid = !email || email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN);
 
   return (
     <main
@@ -87,9 +78,9 @@ export default function LoginPage() {
           background:
             "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
           boxShadow: "0 18px 70px rgba(0,0,0,0.6)",
+          overflow: "hidden",
         }}
       >
-        {/* Accent bar */}
         <div
           style={{
             height: 6,
@@ -99,7 +90,6 @@ export default function LoginPage() {
         />
 
         <div style={{ padding: 26 }}>
-          {/* Logo */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div
               style={{
@@ -120,10 +110,8 @@ export default function LoginPage() {
             </div>
 
             <div style={{ marginTop: 14, textAlign: "center" }}>
-              <div style={{ fontSize: 22, fontWeight: 950 }}>
-                QuarterSmart Sign In
-              </div>
-              <div style={{ marginTop: 6, fontSize: 13, color: "#a7b4d6" }}>
+              <div style={{ fontSize: 22, fontWeight: 950 }}>QuarterSmart Sign In</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "#a7b4d6", lineHeight: 1.5 }}>
                 Structure Properties Training Portal
                 <br />
                 <span>
@@ -133,11 +121,10 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Form */}
           <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
             <Field label="Full name">
               <input
-                placeholder="e.g. Hyrum Hurst"
+                placeholder="e.g., Hyrum Hurst"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 style={inputStyle}
@@ -151,9 +138,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
                   ...inputStyle,
-                  borderColor: domainValid
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(251,113,133,0.55)",
+                  borderColor: domainValid ? "rgba(255,255,255,0.08)" : "rgba(251,113,133,0.55)",
                 }}
               />
               <div
@@ -164,8 +149,8 @@ export default function LoginPage() {
                 }}
               >
                 {domainValid
-                  ? `Only ${ALLOWED_DOMAIN} emails can sign in`
-                  : `Use your ${ALLOWED_DOMAIN} email`}
+                  ? `Only ${ALLOWED_DOMAIN} emails can sign in.`
+                  : `Use your ${ALLOWED_DOMAIN} email.`}
               </div>
             </Field>
 
@@ -183,7 +168,7 @@ export default function LoginPage() {
               onClick={signInOrSignUp}
               disabled={loading}
               style={{
-                padding: "12px",
+                padding: "12px 14px",
                 borderRadius: 14,
                 border: "1px solid rgba(110,231,183,0.35)",
                 background:
@@ -197,71 +182,9 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in / Create account"}
             </button>
 
-            {status && (
-              <div style={{ fontSize: 13, color: "#fb7185" }}>{status}</div>
-            )}
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div style={{ fontSize: 12, color: "#a7b4d6", fontWeight: 850 }}>
-        {label}
-      </div>
-      <div style={{ marginTop: 6 }}>{children}</div>
-    </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(0,0,0,0.18)",
-  color: "#e9eefc",
-  outline: "none",
-};
-             <div style={{ fontSize: 13, color: "#fb7185", lineHeight: 1.4 }}>{status}</div>
+            {status ? (
+              <div style={{ fontSize: 13, color: "#fb7185", lineHeight: 1.4 }}>{status}</div>
             ) : null}
-
-            <div
-              style={{
-                marginTop: 6,
-                paddingTop: 12,
-                borderTop: "1px solid rgba(255,255,255,0.08)",
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <a
-                href="/"
-                style={{
-                  color: "#a7b4d6",
-                  fontSize: 13,
-                  textDecoration: "none",
-                  fontWeight: 800,
-                }}
-              >
-                ← Back to portal
-              </a>
-              <div style={{ color: "#a7b4d6", fontSize: 12 }}>
-                First time? Create an account with your work email.
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -287,4 +210,3 @@ const inputStyle: React.CSSProperties = {
   color: "#e9eefc",
   outline: "none",
 };
-
