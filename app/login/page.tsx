@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import { getSupabaseClient } from "../../lib/supabaseClient";
 
-const ALLOWED_DOMAIN = "@structureproperties.com";
+const ALLOWED_DOMAIN = "@structureproperties.com"; // logic-only for now (UI is generic)
 
 export default function LoginPage() {
   const [fullName, setFullName] = useState("");
@@ -22,8 +22,11 @@ export default function LoginPage() {
 
     if (!name) return setStatus("Please enter your full name.");
     if (!emailClean || !password) return setStatus("Email and password are required.");
-    if (!emailClean.endsWith(ALLOWED_DOMAIN))
-      return setStatus(`Only ${ALLOWED_DOMAIN} emails are allowed.`);
+
+    // Keep the restriction in place, but we don't mention it in the UI.
+    if (!emailClean.endsWith(ALLOWED_DOMAIN)) {
+      return setStatus("Your email domain is not authorized for this portal.");
+    }
 
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -46,8 +49,8 @@ export default function LoginPage() {
         if (signUp.error) throw signUp.error;
       }
 
-      localStorage.setItem("sp_full_name", name);
-      localStorage.setItem("sp_email", emailClean);
+      localStorage.setItem("qs_full_name", name);
+      localStorage.setItem("qs_email", emailClean);
 
       window.location.href = "/";
     } catch (err: any) {
@@ -56,8 +59,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
-
-  const domainValid = !email || email.trim().toLowerCase().endsWith(ALLOWED_DOMAIN);
 
   return (
     <main
@@ -81,6 +82,7 @@ export default function LoginPage() {
           overflow: "hidden",
         }}
       >
+        {/* Accent bar */}
         <div
           style={{
             height: 6,
@@ -90,37 +92,45 @@ export default function LoginPage() {
         />
 
         <div style={{ padding: 26 }}>
+          {/* Logo + header */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div
               style={{
-                width: 96,
-                height: 96,
-                borderRadius: 26,
+                width: 108,
+                height: 108,
+                borderRadius: 28,
                 border: "1px solid rgba(255,255,255,0.10)",
                 background: "rgba(0,0,0,0.28)",
                 boxShadow: "0 14px 40px rgba(0,0,0,0.55)",
                 overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 14, // ✅ gives non-square logos room
               }}
             >
               <img
                 src="/logo.png"
                 alt="QuarterSmart"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain", // ✅ prevents cropping
+                }}
               />
             </div>
 
             <div style={{ marginTop: 14, textAlign: "center" }}>
               <div style={{ fontSize: 22, fontWeight: 950 }}>QuarterSmart Sign In</div>
               <div style={{ marginTop: 6, fontSize: 13, color: "#a7b4d6", lineHeight: 1.5 }}>
-                Structure Properties Training Portal
+                Company training portal
                 <br />
-                <span>
-                  Access restricted to <b>{ALLOWED_DOMAIN}</b>
-                </span>
+                Secure access for authorized teams
               </div>
             </div>
           </div>
 
+          {/* Form */}
           <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
             <Field label="Full name">
               <input
@@ -133,25 +143,11 @@ export default function LoginPage() {
 
             <Field label="Work email">
               <input
-                placeholder={`name${ALLOWED_DOMAIN}`}
+                placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  borderColor: domainValid ? "rgba(255,255,255,0.08)" : "rgba(251,113,133,0.55)",
-                }}
+                style={inputStyle}
               />
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 12,
-                  color: domainValid ? "#a7b4d6" : "#fb7185",
-                }}
-              >
-                {domainValid
-                  ? `Only ${ALLOWED_DOMAIN} emails can sign in.`
-                  : `Use your ${ALLOWED_DOMAIN} email.`}
-              </div>
             </Field>
 
             <Field label="Password">
@@ -210,3 +206,4 @@ const inputStyle: React.CSSProperties = {
   color: "#e9eefc",
   outline: "none",
 };
+
